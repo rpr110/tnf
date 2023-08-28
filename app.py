@@ -189,9 +189,13 @@ def get_company(
     return JSONResponse(status_code=200, content=_content)
 
 
-@app.get("/company/{company_id}/invoice")
+@app.get("/invoice/{invoice_id}")
 def get_company_invoice(
-    company_id:str=Path(...),
+    invoice_id:str=Path(...),
+    company_id:str=Query("all"),
+    status_filter:str=Query("all"), # pending, all, paid
+    start_datetime:datetime.datetime = Query(...),
+    end_datetime:datetime.datetime = Query(...),
     decoded_token:dict = Depends(decodeJwtTokenDependancy),
 ):
     with database_client.Session() as session:
@@ -204,8 +208,19 @@ def get_company_invoice(
             CompanyBankingInfo.company_id==Invoice.company_id
         )
 
+        if invoice_id!="all":
+            query.filter(Invoice.public_id == invoice_id)
+
         if company_id != "all":
             query = query.join(Company, Company.company_id == Invoice.company_id).filter(Company.public_id == company_id)
+
+        if status_filter != "all":
+            sf = 1 if status_filter.upper().strip() == "PAID" else 0
+            query = query.filter(Invoice.payment_status == sf)
+
+
+        query = query.filter(FaceproofLogs.create_date >= start_datetime,
+                                FaceproofLogs.create_date <= end_datetime)
 
 
         query = query.all()
