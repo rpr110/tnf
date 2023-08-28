@@ -189,9 +189,8 @@ def get_company(
     return JSONResponse(status_code=200, content=_content)
 
 
-@app.get("/invoice/{invoice_id}")
+@app.get("/invoice")
 def get_company_invoice(
-    invoice_id:str=Path(...),
     company_id:str=Query("all"),
     status_filter:str=Query("all"), # pending, all, paid
     start_datetime:datetime.datetime = Query(...),
@@ -208,8 +207,6 @@ def get_company_invoice(
             CompanyBankingInfo.company_id==Invoice.company_id
         )
 
-        if invoice_id!="all":
-            query.filter(Invoice.public_id == invoice_id)
 
         if company_id != "all":
             query = query.join(Company, Company.company_id == Invoice.company_id).filter(Company.public_id == company_id)
@@ -228,6 +225,44 @@ def get_company_invoice(
             query = [ {** q[0].to_dict(), "bank_type":q[-1]} for q in query ]
 
     _content = {"meta":{"successful":True,"error":None},"data":query}
+    return JSONResponse(status_code=200, content=_content)
+    
+@app.get("/invoice_stats")
+def get_company_invoice(
+    company_id:str=Query("all"),
+    start_datetime:datetime.datetime = Query(...),
+    end_datetime:datetime.datetime = Query(...),
+    decoded_token:dict = Depends(decodeJwtTokenDependancy),
+):
+    with database_client.Session() as session:
+
+        # Perform the query using SQLAlchemy
+        query = session.query(
+            Invoice.payment_status,
+            func.count(Invoice.payment_status).label('count'),
+            func.sum(Invoice.amount).label('total_amount')
+        )
+
+        if company_id != "all":
+            query = query.join(Company, Company.company_id == Invoice.company_id).filter(Company.public_id == company_id)
+
+
+        query = query.filter(FaceproofLogs.create_date >= start_datetime,
+                                FaceproofLogs.create_date <= end_datetime)
+
+        query = query.group_by(Invoice.payment_status)
+
+        query = query.all()
+        if query:
+            nested_dict = {}
+            for _status, _count, _amount in query:
+                _status_name = "PAID" if _status == 1 else "PENDING"
+                nested_dict[_status_name] = {}
+                nested_dict[_status_name]["total_count"] = _count
+                nested_dict[_status_name]["total_amount"] = _amount
+
+
+    _content = {"meta":{"successful":True,"error":None},"data":nested_dict}
     return JSONResponse(status_code=200, content=_content)
     
 
