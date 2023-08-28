@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Body, Depends, Query, Request
+from fastapi import FastAPI, Body, Depends, Query, Request, Path
 from fastapi.responses import JSONResponse
 from db import *
 from security import *
@@ -26,7 +26,7 @@ def login(email_id:str=Body(...),password:str=Body(...)):
         banking_info = session.query(
             CompanyBankingInfo
         ).filter(
-            CompanyBankingInfo.company_id == employee_data.get("data",{}).get("company",{}).get("company_id",{})
+            CompanyBankingInfo.company_id == employee_data.get("company",{}).get("company_id",{})
         ).order_by(
             CompanyBankingInfo.update_date.desc()
         ).first()
@@ -155,25 +155,42 @@ def logs(*,
 # Get Stats
 
 # CRUD Company
-@app.get("/company")
+@app.get("/company/{company_id}")
 def get_company(
+    company_id:str=Path(...),
     decoded_token:dict = Depends(decodeJwtTokenDependancy),
 ):
     with database_client.Session() as session:
         query = session.query(Company)
+        if company_id != "all":
+            query = query.filter(Company.public_id == company_id)
 
 
+        _q = []
         if query:
             query = query.all()
-            query = [ ld.to_dict() for ld in query ]
 
+            for ld in query :
+                _dt = ld.to_dict()
+                
 
-    _content = {"meta":{"successful":True,"error":None},"data":query}
+                banking_info = session.query(
+                        CompanyBankingInfo
+                    ).filter(
+                        CompanyBankingInfo.company_id == _dt.get("company_id",{})
+                    ).order_by(
+                        CompanyBankingInfo.update_date.desc()
+                    ).first()
+
+                _dt["banking_info"] = banking_info.to_dict() if banking_info else None
+                _q.append(_dt)
+
+    _content = {"meta":{"successful":True,"error":None},"data":_q}
     return JSONResponse(status_code=200, content=_content)
 
 
-@app.get("/company/{company_id}/users")
-def get_company():
+@app.get("/company/{company_id}/users/{user_id}")
+def get_company_user():
     ...
 
 # CRUD Employee
