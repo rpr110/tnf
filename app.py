@@ -192,23 +192,25 @@ def get_company(
 @app.get("/company/{company_id}/invoice/{invoice_id}")
 def get_company_invoice(
     company_id:str=Path(...),
-    invoice_id:str=Path(...),
     decoded_token:dict = Depends(decodeJwtTokenDependancy),
 ):
     with database_client.Session() as session:
 
-        query = session.query(Invoice)
+        query = session.query(
+            Invoice,
+            CompanyBankingInfo.bank_type
+        ).join(
+            CompanyBankingInfo,
+            CompanyBankingInfo.company_id==Invoice.company_id
+        )
 
         if company_id != "all":
             query = query.join(Company, Company.company_id == Invoice.company_id).filter(Company.public_id == company_id)
 
-        if invoice_id != "all":
-            query = query.filter(Invoice.public_id == invoice_id)
 
-        
         query = query.all()
         if query:
-            query = [ q.to_dict() for q in query ]
+            query = [ {** q[0].to_dict(), "bank_type":q[-1]} for q in query ]
 
     _content = {"meta":{"successful":True,"error":None},"data":query}
     return JSONResponse(status_code=200, content=_content)
@@ -216,9 +218,20 @@ def get_company_invoice(
 
 
 
-@app.get("/invoice/file/{invoice_id}")
-def get_company_invoice():
-    ...
+# @app.get("/invoice/file/{invoice_id}")
+# def get_company_invoice(
+#     invoice_id:str=Path(...),
+#     decoded_token:dict = Depends(decodeJwtTokenDependancy),
+# ):
+#     with database_client.Session() as session:
+
+#         query = session.query(
+#             Invoice,
+#             CompanyBankingInfo.bank_type
+#         ).join(
+#             CompanyBankingInfo,
+#             CompanyBankingInfo.company_id==Invoice.company_id
+#         )
 
 
 # CRUD Employee
