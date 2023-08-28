@@ -189,7 +189,7 @@ def get_company(
     return JSONResponse(status_code=200, content=_content)
 
 
-@app.get("/company/{company_id}/invoice/{invoice_id}")
+@app.get("/company/{company_id}/invoice")
 def get_company_invoice(
     company_id:str=Path(...),
     decoded_token:dict = Depends(decodeJwtTokenDependancy),
