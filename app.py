@@ -23,6 +23,16 @@ def login(email_id:str=Body(...),password:str=Body(...)):
         
         employee_data = employee_data.to_dict()
 
+        banking_info = session.query(
+            CompanyBankingInfo
+        ).filter(
+            CompanyBankingInfo.company_id == employee_data.get("data",{}).get("company",{}).get("company_id",{})
+        ).order_by(
+            CompanyBankingInfo.update_date.desc()
+        ).first()
+
+        employee_data["company"]["banking_info"] = banking_info.to_dict() if banking_info else None
+
     _content, status_code = {"meta":{"successful":False,"error":{"error_message":"invalid credentials"},},"data":None}, 403
     if employee_data.get("password") == password:
         _token = generateJwtToken(exp=100000,user_id=employee_data.get("public_id"),company_id=employee_data.get("company",{}).get("public_id"),role_id=employee_data.get("role",{}).get("public_id"))
@@ -123,21 +133,6 @@ def logs(*,
         # query = query.group_by(FaceproofLogs.service_id, FaceproofLogs.status_id,)
         query = query.group_by(ServiceMaster.service_name, StatusMaster.status,)
 
-        # subq_alias = alias(query)
-
-
-        # q2 = session.query(
-        #     StatusMaster.status,
-        #     ServiceMaster.service_name,
-        #     subq_alias.c.count
-        # ).join(
-        #     subq_alias,
-        #     ServiceMaster.service_id==subq_alias.c.service_id
-        # ).join(
-        #    StatusMaster,
-        #    StatusMaster.status_id==subq_alias.c.status_id 
-        # )
-
 
         if query:
             query = query.all()
@@ -157,10 +152,46 @@ def logs(*,
 
 
 # Onboard Client
+# Get Stats
+
 # CRUD Company
+@app.get("/company")
+def get_company(
+    decoded_token:dict = Depends(decodeJwtTokenDependancy),
+):
+    with database_client.Session() as session:
+        query = session.query(Company)
+
+
+        if query:
+            query = query.all()
+            query = [ ld.to_dict() for ld in query ]
+
+
+    _content = {"meta":{"successful":True,"error":None},"data":query}
+    return JSONResponse(status_code=200, content=_content)
+
+
+@app.get("/company/{company_id}/users")
+def get_company():
+    ...
+
 # CRUD Employee
 # CRUD Billing
 
+
+
+
+
+
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
